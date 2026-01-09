@@ -1,0 +1,40 @@
+name: Security Scans (Semgrep + Grype)
+
+on:
+  pull_request:
+    branches: [ "main" ]
+
+permissions:
+  contents: read
+
+jobs:
+  semgrep:
+    name: SAST - Semgrep
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run Semgrep
+        uses: semgrep/semgrep-action@v1
+        with:
+          config: p/ci
+        env:
+          SEMGREP_ENABLE_VERSION_CHECK: "0"
+          SEMGREP_APP_TOKEN: ""
+
+  grype:
+    name: SCA - Grype
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Grype
+        uses: anchore/scan-action/install@v3
+
+      - name: Run Grype
+        run: |
+          grype dir:. \
+            --only-fixed \
+            --fail-on high

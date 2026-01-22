@@ -1,40 +1,64 @@
-name: Security Scans (Semgrep + Grype)
+name: SAST (Semgrep) + SCA (Grype) on PR
 
 on:
   pull_request:
-    branches: [ "main" ]
+    branches: ["main", "master"]
+  push:
+    branches: ["main", "master"]
 
 permissions:
   contents: read
 
 jobs:
-  semgrep:
-    name: SAST - Semgrep
+  semgrep-sast:
+    name: Semgrep (SAST)
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write  # нужно для upload-sarif
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Run Semgrep
-        uses: semgrep/semgrep-action@v1
-        with:
-          config: p/ci
-        env:
-          SEMGREP_ENABLE_VERSION_CHECK: "0"
-          SEMGREP_APP_TOKEN: ""
-
-  grype:
-    name: SCA - Grype
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install Grype
-        uses: anchore/scan-action/install@v3
-
-      - name: Run Grype
+      # Вариант без Semgrep AppSec Platform токена (OSS/CE):
+      - name: Run Semgrep (SARIF)
         run: |
-          grype dir:. \
-            --only-fixed \
-            --fail-on high
+          python -m pip install --upgrade pip
+          pip install semgrep
+          # "auto" подберет набор правил под проект (быстро стартануть)
+          semgrep scan --config=auto --sarif-output=semgrep.sarif .
+
+      - name: Upload Semgrep SARIF to GitHub Code Scanning
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: semgrep.sarif
+          category: semgrep
+        if: always()
+
+  grype-sca:
+    name: Grype (SCA)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write  # нужно для upload-sarif
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Anchore scan-action запускает Grype и умеет output SARIF
+      - name: Run Grype via Anchore scan-action (SARIF)
+        uses: anchore/scan-action@v6
+        id: grype
+        with:
+          path: "."
+          output-format: sarif
+          output-file: grype.sarif
+          fail-build: true
+          severity-cutoff: high
+
+      - name: Upload Grype SARIF to GitHub Code Scanning
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: grype.sarif
+          category: grype
+        if: always()

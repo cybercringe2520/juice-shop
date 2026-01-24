@@ -3,8 +3,6 @@ name: SAST (Semgrep) + SCA (Grype) on PR
 on:
   pull_request:
     branches: ["main", "master"]
-  push:
-    branches: ["main", "master"]
 
 permissions:
   contents: read
